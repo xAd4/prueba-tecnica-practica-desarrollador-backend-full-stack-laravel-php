@@ -14,6 +14,10 @@
 ### Health check de Laravel
 GET {{baseUrl}}/up
 
+### Versión del backend (imagen publicada en Docker Hub)
+GET {{baseUrl}}/version
+Accept: application/json
+
 ### Listar todos los libros
 GET {{baseUrl}}/books
 Accept: application/json

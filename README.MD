@@ -107,6 +107,7 @@ Al arrancar, el backend ejecuta las **migraciones** y los **seeders** automátic
 | `APP_ENV` / `APP_DEBUG` | `production` / `false` | Entorno de Laravel |
 | `RUN_MIGRATIONS` / `RUN_SEEDERS` | `true` / `true` | Migraciones y seeders al arrancar el backend |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:5173` | Orígenes permitidos (separados por comas, `*` para cualquiera) |
+| `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_WRITES_PER_MINUTE` | `60` / `20` | Peticiones por minuto y por IP (total / escrituras). Ver [Rate limiting](#rate-limiting) |
 | `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `library` / `postgres` / `postgres_secret` | Credenciales de PostgreSQL |
 | `FRONTEND_PORT` / `BACKEND_PORT` / `DB_FORWARD_PORT` | `8081` / `8010` / `5433` | Puertos publicados en el host |
 | `DOCKERHUB_NAMESPACE` / `IMAGE_TAG` | `library-local` / `latest` | Nombre y tag de las imágenes |
@@ -177,6 +178,7 @@ En desarrollo, Vite reenvía `/api/*` a `VITE_DEV_API_PROXY_TARGET` (por defecto
 | --- | --- | --- |
 | `VITE_API_URL` | `/api` | URL base de la API usada por Axios (se fija en tiempo de build) |
 | `VITE_DEV_API_PROXY_TARGET` | `http://localhost:8000` | Solo `pnpm dev`: destino del proxy `/api` |
+| `VITE_APP_VERSION` | `dev` | Versión mostrada en el pie. En Docker se toma del build arg `APP_VERSION` |
 
 ---
 
@@ -217,6 +219,22 @@ Validaciones: `title` obligatorio y de 3 caracteres como mínimo · `author` obl
 | `PUT` | `/categories/{id}` | Renombra (`name` único) | 200 · 404 · 422 |
 | `DELETE` | `/categories/{id}` | Elimina **solo si no tiene libros** | 200 · 404 · **409** |
 
+### Sistema
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| `GET` | `/version` | Versión de la imagen del backend (`{ "data": { "name": "...", "version": "1.0.7" } }`) |
+| `GET` | `/up` | Health check de Laravel |
+
+### Rate limiting
+
+Todas las rutas de la API pasan por el limitador `api` (definido en `AppServiceProvider`). Los límites son por IP del cliente y, detrás de Nginx, se usa la IP real de `X-Forwarded-For`:
+
+- **60 peticiones/minuto** en total (`RATE_LIMIT_PER_MINUTE`).
+- **20 peticiones/minuto** de escritura: `POST`, `PUT`, `PATCH` y `DELETE` (`RATE_LIMIT_WRITES_PER_MINUTE`).
+
+Las respuestas incluyen las cabeceras `X-RateLimit-Limit` y `X-RateLimit-Remaining`. Al superar el límite, la API responde **429** con `Retry-After` y `{ "message": "Demasiadas peticiones. Inténtalo de nuevo en N segundos." }`.
+
 ### Errores
 
 | Código | Cuándo | Cuerpo |
@@ -225,6 +243,7 @@ Validaciones: `title` obligatorio y de 3 caracteres como mínimo · `author` obl
 | 405 | Método no permitido | `{ "message": "..." }` |
 | 409 | Categoría con libros asociados | `{ "message": "No se puede eliminar la categoría \"Novela\" porque tiene libros asociados." }` |
 | 422 | Validación | `{ "message": "...", "errors": { "title": ["..."] } }` |
+| 429 | Demasiadas peticiones | `{ "message": "Demasiadas peticiones. Inténtalo de nuevo en 56 segundos." }` |
 
 ---
 
@@ -299,6 +318,7 @@ src/
 │   ├── slices/       bookSlice.ts
 │   ├── types/        book.types.ts
 │   └── utils/        bookForm.ts (validación + mapeos)
+├── version/        ── feature: leyenda con las versiones (useVersionStore.ts + versionSlice.ts)
 ├── categories/     ── feature
 │   ├── components/   CategoryForm, CategoryList, CategoryManagerModal
 │   ├── hooks/        useCategoriesStore.ts  (llamadas a la API /categories)
@@ -338,6 +358,8 @@ Cache: paquetes de Composer (`actions/cache`, clave `composer.lock`) y store de 
 3. Crea el tag `v1.0.7` y una **GitHub Release** con las notas generadas.
 
 No despliega en ningún sitio. Para subir de versión mayor o menor, edita `VERSION`.
+
+La versión se pasa a ambas imágenes como build arg `APP_VERSION`. El backend la expone en `GET /version` y el frontend la incluye en el bundle (`VITE_APP_VERSION`). El pie de la aplicación muestra las dos: **Frontend v1.0.7 · Backend v1.0.7**.
 
 ### Configuración necesaria en GitHub
 

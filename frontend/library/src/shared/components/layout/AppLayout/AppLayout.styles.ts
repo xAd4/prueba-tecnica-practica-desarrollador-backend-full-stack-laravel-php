@@ -42,6 +42,13 @@ export const brandSubtitleStyle: MotionStyle = {
   color: theme.colors.textMuted,
 }
 
+export const footerStyle: MotionStyle = {
+  maxWidth: theme.layout.maxWidth,
+  margin: '0 auto',
+  padding: `${theme.space.lg} ${theme.space.lg} ${theme.space.xl}`,
+  borderTop: `1px solid ${theme.colors.border}`,
+}
+
 export const mainStyle: MotionStyle = {
   maxWidth: theme.layout.maxWidth,
   margin: '0 auto',

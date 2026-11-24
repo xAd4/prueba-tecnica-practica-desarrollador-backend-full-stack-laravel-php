@@ -29,7 +29,10 @@ FROM deps AS build
 COPY . .
 # Base URL used by the SPA to reach the API. "/api" is proxied by Nginx.
 ARG VITE_API_URL=/api
-ENV VITE_API_URL=${VITE_API_URL}
+# Version of the image, shown in the UI footer (set by the CI pipeline).
+ARG APP_VERSION=dev
+ENV VITE_API_URL=${VITE_API_URL} \
+    VITE_APP_VERSION=${APP_VERSION}
 RUN pnpm run build
 
 # ---------------------------------------------------------------------------

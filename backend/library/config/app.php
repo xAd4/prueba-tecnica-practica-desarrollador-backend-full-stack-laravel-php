@@ -17,6 +17,33 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Version
+    |--------------------------------------------------------------------------
+    |
+    | Version of the published Docker image (injected by the CI pipeline as
+    | the APP_VERSION build argument). "dev" when running from source.
+    |
+    */
+
+    'version' => env('APP_VERSION', 'dev'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | API Rate Limiting
+    |--------------------------------------------------------------------------
+    |
+    | Maximum number of requests per minute for each client (IP address).
+    | Write operations (POST, PUT, PATCH, DELETE) have a stricter limit.
+    |
+    */
+
+    'rate_limit' => [
+        'per_minute' => (int) env('RATE_LIMIT_PER_MINUTE', 60),
+        'writes_per_minute' => (int) env('RATE_LIMIT_WRITES_PER_MINUTE', 20),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

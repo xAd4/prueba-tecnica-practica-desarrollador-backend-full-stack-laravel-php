@@ -19,6 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // The API runs behind the frontend's Nginx reverse proxy.
         $middleware->trustProxies(at: '*');
+
+        // Rate limiting for every API route ("api" limiter in AppServiceProvider).
+        $middleware->throttleApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // API-only application: always answer with JSON.

@@ -2,7 +2,10 @@
 
 use App\Http\Controllers\Api\BookController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\VersionController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/version', VersionController::class);
 
 Route::controller(BookController::class)->prefix('books')->group(function () {
     Route::get('/', 'index');
