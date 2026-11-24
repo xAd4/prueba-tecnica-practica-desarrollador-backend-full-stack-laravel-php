@@ -7,6 +7,7 @@ Aplicación para gestionar una biblioteca de libros: CRUD de libros y categoría
 | Backend | PHP 8.2+ · Laravel 12 · Eloquent · PostgreSQL · arquitectura **Repository → Service → Controller** |
 | Frontend | React 19 · TypeScript · Vite · Redux Toolkit · Axios · **Motion** (estilos y animaciones) · SweetAlert2 · arquitectura **Screaming Architecture** |
 | Infraestructura | Docker multi-stage (FrankenPHP / Nginx sin privilegios) · Docker Compose · GitHub Actions · Docker Hub |
+| Agente de IA | **Claude Code** (modelo Claude Opus 5.5) |
 
 > El enunciado original del reto está en [`docs/ENUNCIADO.md`](docs/ENUNCIADO.md).
 
