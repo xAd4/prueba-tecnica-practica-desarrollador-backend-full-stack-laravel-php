@@ -17,8 +17,9 @@ permissions:
   contents: read
 
 env:
-  # Repository variable (Settings > Secrets and variables > Actions > Variables)
-  DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_USERNAME }}
+  # Docker Hub user: read from a repository variable or, if not defined, from a secret
+  # (Settings > Secrets and variables > Actions).
+  DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_USERNAME || secrets.DOCKERHUB_USERNAME }}
   IMAGE_PREFIX: books
 
 jobs:
@@ -67,7 +68,7 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
+          username: ${{ env.DOCKERHUB_NAMESPACE }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Docker metadata (tags + labels)

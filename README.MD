@@ -345,7 +345,7 @@ En *Settings → Secrets and variables → Actions*:
 
 | Tipo | Nombre | Valor |
 | --- | --- | --- |
-| Variable | `DOCKERHUB_USERNAME` | Tu usuario/organización de Docker Hub |
+| Variable **o** Secret | `DOCKERHUB_USERNAME` | Tu usuario/organización de Docker Hub |
 | Secret | `DOCKERHUB_TOKEN` | Un *Personal Access Token* de Docker Hub con permiso **Read & Write** |
 
 Y en Docker Hub, dos repositorios públicos: **`books-backend`** y **`books-frontend`**.
