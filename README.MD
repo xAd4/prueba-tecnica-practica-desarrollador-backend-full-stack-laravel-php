@@ -15,8 +15,8 @@ Aplicación para gestionar una biblioteca de libros: CRUD de libros y categoría
 ## Índice
 
 1. [Estructura del repositorio](#1-estructura-del-repositorio)
-2. [Inicio rápido con Docker Compose](#2-inicio-rápido-con-docker-compose)
-3. [Inicio local sin Docker](#3-inicio-local-sin-docker)
+2. [Ejecutar la aplicación con Docker](#2-ejecutar-la-aplicación-con-docker) (recomendado)
+3. [Ejecutar la aplicación en local, sin Docker](#3-ejecutar-la-aplicación-en-local-sin-docker)
 4. [API REST](#4-api-rest)
 5. [Probar la API con REST Client](#5-probar-la-api-con-rest-client)
 6. [Tests, lint y build](#6-tests-lint-y-build)
@@ -52,6 +52,7 @@ books/
 │   │   ├── app/                # Store, providers y componente raíz
 │   │   ├── books/              # Feature "libros"
 │   │   ├── categories/         # Feature "categorías"
+│   │   ├── version/            # Feature "versión" (leyenda del pie)
 │   │   ├── shared/             # API client, tema, UI kit, utilidades
 │   │   └── test/               # Setup y helpers de Vitest
 │   └── Dockerfile
@@ -62,79 +63,148 @@ books/
 
 ---
 
-## 2. Inicio rápido con Docker Compose
+## 2. Ejecutar la aplicación con Docker
+
+### Imágenes publicadas en Docker Hub
+
+| Imagen | Docker Hub | Pull |
+| --- | --- | --- |
+| Backend (Laravel API) | [angelestarita/books-backend](https://hub.docker.com/r/angelestarita/books-backend) | `docker pull angelestarita/books-backend:latest` |
+| Frontend (React + Nginx) | [angelestarita/books-frontend](https://hub.docker.com/r/angelestarita/books-frontend) | `docker pull angelestarita/books-frontend:latest` |
+
+Cada imagen se publica con el tag de su versión (`1.0.N`), `1.0` y `latest`. Consulta las versiones disponibles en la pestaña *Tags* de Docker Hub o en las [Releases](../../releases) del repositorio.
 
 ### Requisitos
 
 - Docker Desktop (o Docker Engine) con Docker Compose v2.
 
-### Pasos
+Hay tres formas de levantarla. **Se recomienda la opción A**: `docker-compose.yml` ya define las imágenes, la base de datos, los volúmenes, las redes, los health checks y el orden de arranque.
+
+### Opción A (recomendada): Docker Compose con las imágenes de Docker Hub
+
+No compila nada: descarga las imágenes ya publicadas.
 
 ```bash
-# 1. (Opcional) Copia las variables de entorno. Todas tienen un valor por defecto.
+# 1. Clona el repositorio (solo necesitas docker-compose.yml y .env.example)
+git clone https://github.com/xAd4/prueba-tecnica-practica-desarrollador-backend-full-stack-laravel-php.git
+cd prueba-tecnica-practica-desarrollador-backend-full-stack-laravel-php
+
+# 2. Copia las variables de entorno (opcional: todas tienen valor por defecto)
 cp .env.example .env
 
-# 2. (Recomendado) Genera una APP_KEY y pégala en .env
-php -r "echo 'base64:'.base64_encode(random_bytes(32)).PHP_EOL;"
-#   o, sin PHP instalado:
-docker run --rm php:8.3-cli-alpine php -r "echo 'base64:'.base64_encode(random_bytes(32)).PHP_EOL;"
+# 3. Descarga las imágenes y levanta los contenedores
+docker compose pull
+docker compose up -d --no-build
 
-# 3. Construye y levanta todo
-docker compose up -d --build
-
-# 4. Comprueba el estado (los tres servicios deben salir "healthy")
+# 4. Espera a que los tres servicios estén "healthy"
 docker compose ps
 ```
 
-Al arrancar, el backend ejecuta las **migraciones** y los **seeders** automáticamente (`RUN_MIGRATIONS=true`, `RUN_SEEDERS=true`). Los seeders son idempotentes: puedes reiniciar sin duplicar datos.
+Abre **<http://localhost:8081>**: verás los libros de ejemplo y, en el pie, las versiones del frontend y del backend.
+
+> Para fijar una versión concreta en lugar de `latest`, pon `IMAGE_TAG=1.0.3` (por ejemplo) en `.env`.
+
+### Opción B: Docker Compose compilando desde el código
+
+Útil si modificas el código y quieres probar tus propias imágenes:
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+docker compose ps
+```
+
+Abre **<http://localhost:8081>**.
+
+### Opción C: comando a comando con `docker run`
+
+Si prefieres no usar Compose, estos comandos recrean a mano lo mismo que hace `docker-compose.yml`: una red, un volumen y los tres contenedores. Los nombres de los contenedores importan, porque el frontend llega al backend por `BACKEND_URL` y el backend a la base de datos por `DB_HOST`.
+
+```bash
+# 1. Red y volumen
+docker network create library-net
+docker volume create library-db-data
+
+# 2. Base de datos PostgreSQL
+docker run -d --name library-db --network library-net \
+  -e POSTGRES_DB=library -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres_secret \
+  -v library-db-data:/var/lib/postgresql/data \
+  -p 5433:5432 \
+  postgres:17-alpine
+
+# 3. Espera a que acepte conexiones (repite hasta ver "accepting connections")
+docker exec library-db pg_isready -U postgres -d library
+
+# 4. Backend: ejecuta migraciones y seeders al arrancar
+docker run -d --name library-backend --network library-net \
+  -e DB_CONNECTION=pgsql -e DB_HOST=library-db -e DB_PORT=5432 \
+  -e DB_DATABASE=library -e DB_USERNAME=postgres -e DB_PASSWORD=postgres_secret \
+  -e RUN_MIGRATIONS=true -e RUN_SEEDERS=true \
+  -e CORS_ALLOWED_ORIGINS=http://localhost:8081 \
+  -p 8010:8000 \
+  angelestarita/books-backend:latest
+
+# 5. Frontend: Nginx sirve la SPA y reenvía /api al backend
+docker run -d --name library-frontend --network library-net \
+  -e BACKEND_URL=http://library-backend:8000 \
+  -p 8081:8080 \
+  angelestarita/books-frontend:latest
+```
+
+Abre **<http://localhost:8081>**. Comprueba el backend en <http://localhost:8010/version>.
+
+> **PowerShell:** sustituye la `\` del final de cada línea por un acento grave `` ` `` o escribe cada comando en una sola línea.
+>
+> **APP_KEY:** si no la pasas (`-e APP_KEY=base64:...`), el backend genera una efímera al arrancar. Basta para esta API, que no usa sesiones.
+
+Para limpiar todo lo creado con la opción C:
+
+```bash
+docker rm -f library-frontend library-backend library-db
+docker network rm library-net
+docker volume rm library-db-data      # borra los datos de la BD
+```
 
 ### URLs
 
 | Servicio | URL | Notas |
 | --- | --- | --- |
-| Frontend | <http://localhost:8081> | La SPA llama a `/api/*` y Nginx lo reenvía al backend |
-| Backend (directo) | <http://localhost:8010/books> | Health check: <http://localhost:8010/up> |
+| **Aplicación (frontend)** | <http://localhost:8081> | La SPA llama a `/api/*` y Nginx lo reenvía al backend |
+| Backend (directo) | <http://localhost:8010/books> | Versión: <http://localhost:8010/version> · Health check: <http://localhost:8010/up> |
 | Backend (vía Nginx) | <http://localhost:8081/api/books> | |
 | PostgreSQL | `localhost:5433` | usuario `postgres`, BD `library` |
 
+Al arrancar, el backend ejecuta las **migraciones** y los **seeders** (`RUN_MIGRATIONS=true`, `RUN_SEEDERS=true`). Los seeders son idempotentes: puedes reiniciar sin duplicar datos.
+
 > Los puertos del host se eligieron para no chocar con servicios locales habituales (un PostgreSQL local en 5432, `php artisan serve` en 8000, etc.). Puedes cambiarlos en `.env` con `FRONTEND_PORT`, `BACKEND_PORT` y `DB_FORWARD_PORT`.
 
-### Variables de entorno (`.env` de la raíz)
+### Variables de entorno (`.env` de la raíz, usado por Docker Compose)
 
 | Variable | Por defecto | Descripción |
 | --- | --- | --- |
-| `APP_KEY` | *(vacío)* | Clave de Laravel. Si está vacía, el contenedor genera una efímera y lo avisa en los logs |
+| `DOCKERHUB_NAMESPACE` / `IMAGE_TAG` | `angelestarita` / `latest` | Usuario de Docker Hub y tag de las imágenes |
+| `APP_KEY` | *(vacío)* | Clave de Laravel. Si está vacía, el contenedor genera una efímera y lo avisa en los logs. Para generar una: `docker run --rm php:8.3-cli-alpine php -r "echo 'base64:'.base64_encode(random_bytes(32)).PHP_EOL;"` |
 | `APP_ENV` / `APP_DEBUG` | `production` / `false` | Entorno de Laravel |
 | `RUN_MIGRATIONS` / `RUN_SEEDERS` | `true` / `true` | Migraciones y seeders al arrancar el backend |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:8081,http://localhost:5173` | Orígenes permitidos (separados por comas, `*` para cualquiera) |
 | `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_WRITES_PER_MINUTE` | `60` / `20` | Peticiones por minuto y por IP (total / escrituras). Ver [Rate limiting](#rate-limiting) |
 | `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | `library` / `postgres` / `postgres_secret` | Credenciales de PostgreSQL |
 | `FRONTEND_PORT` / `BACKEND_PORT` / `DB_FORWARD_PORT` | `8081` / `8010` / `5433` | Puertos publicados en el host |
-| `DOCKERHUB_NAMESPACE` / `IMAGE_TAG` | `library-local` / `latest` | Nombre y tag de las imágenes |
 
-### Comandos útiles
+### Comandos útiles (Compose)
 
 ```bash
-docker compose logs -f backend                    # logs del backend
+docker compose logs -f backend                                 # logs del backend
 docker compose exec backend php artisan migrate:fresh --seed   # reiniciar la BD
 docker compose exec db psql -U postgres -d library             # consola de PostgreSQL
-docker compose down                               # parar
-docker compose down -v                            # parar y BORRAR el volumen de la BD
-```
-
-### Usar las imágenes publicadas en Docker Hub
-
-```bash
-# En .env:
-#   DOCKERHUB_NAMESPACE=<tu-usuario-de-docker-hub>
-#   IMAGE_TAG=latest        # o una versión concreta, p. ej. 1.0.12
-docker compose pull backend frontend
-docker compose up -d --no-build
+docker compose pull && docker compose up -d --no-build         # actualizar a la última versión publicada
+docker compose down                                            # parar
+docker compose down -v                                         # parar y BORRAR el volumen de la BD
 ```
 
 ---
 
-## 3. Inicio local sin Docker
+## 3. Ejecutar la aplicación en local, sin Docker
 
 ### Requisitos
 
@@ -171,6 +241,8 @@ pnpm install
 cp .env.example .env          # opcional
 pnpm dev                      # http://localhost:5173
 ```
+
+Abre **<http://localhost:5173>**. Necesitas el backend levantado en paralelo (`php artisan serve`).
 
 En desarrollo, Vite reenvía `/api/*` a `VITE_DEV_API_PROXY_TARGET` (por defecto `http://localhost:8000`), igual que Nginx en Docker. Así no hay problemas de CORS.
 

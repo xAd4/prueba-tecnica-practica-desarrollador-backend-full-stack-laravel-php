@@ -39,7 +39,7 @@ services:
       target: runtime
       args:
         APP_VERSION: ${IMAGE_TAG:-latest}
-    image: ${DOCKERHUB_NAMESPACE:-library-local}/books-backend:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_NAMESPACE:-angelestarita}/books-backend:${IMAGE_TAG:-latest}
     environment:
       APP_NAME: "Library API"
       APP_ENV: ${APP_ENV:-production}
@@ -75,7 +75,7 @@ services:
       args:
         VITE_API_URL: /api
         APP_VERSION: ${IMAGE_TAG:-latest}
-    image: ${DOCKERHUB_NAMESPACE:-library-local}/books-frontend:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_NAMESPACE:-angelestarita}/books-frontend:${IMAGE_TAG:-latest}
     environment:
       BACKEND_URL: http://backend:8000
     ports:
