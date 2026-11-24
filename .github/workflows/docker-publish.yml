@@ -1,0 +1,134 @@
+name: Docker Publish
+
+# Runs automatically when the "CI" workflow finishes on main.
+# It only publishes when CI succeeded for a push (not for pull requests).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: docker-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Repository variable (Settings > Secrets and variables > Actions > Variables)
+  DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_USERNAME }}
+  IMAGE_PREFIX: books
+
+jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Build version "MAJOR.MINOR.RUN_NUMBER" from the VERSION file
+        id: version
+        run: |
+          base="$(tr -d '[:space:]' < VERSION)"
+          echo "version=${base}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "### Version ${base}.${{ github.run_number }}" >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Push ${{ matrix.service }} image
+    runs-on: ubuntu-latest
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            context: backend/library
+          - service: frontend
+            context: frontend/library
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKERHUB_NAMESPACE }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.version.outputs.version }}
+            type=sha,format=short,prefix=sha-
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.version.outputs.sha }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          target: runtime
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ needs.version.outputs.version }}
+          # Layer cache stored in GitHub Actions, one scope per image.
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Summary
+        run: |
+          {
+            echo "### ${{ matrix.service }}"
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs: [version, publish]
+    permissions:
+      contents: write
+    steps:
+      - name: Create tag and release v${{ needs.version.outputs.version }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          SHA: ${{ needs.version.outputs.sha }}
+          NAMESPACE: ${{ env.DOCKERHUB_NAMESPACE }}
+        run: |
+          gh release create "v${VERSION}" \
+            --repo "${{ github.repository }}" \
+            --target "${SHA}" \
+            --title "v${VERSION}" \
+            --generate-notes \
+            --notes "Docker images:
+          - \`${NAMESPACE}/${IMAGE_PREFIX}-backend:${VERSION}\` (also \`latest\`)
+          - \`${NAMESPACE}/${IMAGE_PREFIX}-frontend:${VERSION}\` (also \`latest\`)"

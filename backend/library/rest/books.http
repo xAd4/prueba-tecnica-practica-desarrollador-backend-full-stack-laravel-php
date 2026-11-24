@@ -1,0 +1,103 @@
+### =========================================================================
+### Libros — pruebas con la extensión REST Client (humao.rest-client)
+### Haz clic en "Send Request" sobre cada petición.
+###
+### baseUrl:
+###   - Local (php artisan serve) ........ http://localhost:8000
+###   - Docker, directo al backend ........ http://localhost:8010
+###   - Docker, a través del frontend ..... http://localhost:8081/api
+### =========================================================================
+
+@baseUrl = http://localhost:8010
+@categoryId = 1
+
+### Health check de Laravel
+GET {{baseUrl}}/up
+
+### Listar todos los libros
+GET {{baseUrl}}/books
+Accept: application/json
+
+### Filtrar libros por categoría
+GET {{baseUrl}}/books?category={{categoryId}}
+Accept: application/json
+
+### Crear un libro
+# @name createBook
+POST {{baseUrl}}/books
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "El nombre del viento",
+  "author": "Patrick Rothfuss",
+  "description": "Primera jornada de la Crónica del asesino de reyes.",
+  "published_year": 2007,
+  "category_id": {{categoryId}}
+}
+
+### Ver el libro recién creado
+@bookId = {{createBook.response.body.$.data.id}}
+
+GET {{baseUrl}}/books/{{bookId}}
+Accept: application/json
+
+### Editar el libro
+PUT {{baseUrl}}/books/{{bookId}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "El nombre del viento (edición especial)",
+  "author": "Patrick Rothfuss",
+  "description": null,
+  "published_year": 2017,
+  "category_id": {{categoryId}}
+}
+
+### Eliminar el libro
+DELETE {{baseUrl}}/books/{{bookId}}
+Accept: application/json
+
+### -------------------------------------------------------------------------
+### Casos de error
+### -------------------------------------------------------------------------
+
+### Validación: campos obligatorios -> 422
+POST {{baseUrl}}/books
+Accept: application/json
+Content-Type: application/json
+
+{}
+
+### Validación: título corto, año inválido y categoría inexistente -> 422
+POST {{baseUrl}}/books
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "ab",
+  "author": "Anónimo",
+  "published_year": 3000,
+  "category_id": 999999
+}
+
+### Filtro con categoría inexistente -> 422
+GET {{baseUrl}}/books?category=999999
+Accept: application/json
+
+### Libro inexistente al editar -> 404
+PUT {{baseUrl}}/books/999999
+Accept: application/json
+Content-Type: application/json
+
+{
+  "title": "No existe",
+  "author": "Nadie",
+  "published_year": 2000,
+  "category_id": {{categoryId}}
+}
+
+### Libro inexistente al eliminar -> 404
+DELETE {{baseUrl}}/books/999999
+Accept: application/json

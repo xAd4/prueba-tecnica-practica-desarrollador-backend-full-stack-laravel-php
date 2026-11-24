@@ -1,0 +1,8 @@
+# Environment files with secrets
+.env
+!.env.example
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/

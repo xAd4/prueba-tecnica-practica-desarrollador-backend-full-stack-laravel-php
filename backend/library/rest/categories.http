@@ -1,0 +1,75 @@
+### =========================================================================
+### Categorías — pruebas con la extensión REST Client (humao.rest-client)
+### Haz clic en "Send Request" sobre cada petición.
+###
+### baseUrl:
+###   - Local (php artisan serve) ........ http://localhost:8000
+###   - Docker, directo al backend ........ http://localhost:8010
+###   - Docker, a través del frontend ..... http://localhost:8081/api
+### =========================================================================
+
+@baseUrl = http://localhost:8010
+
+### Listar categorías (incluye books_count)
+GET {{baseUrl}}/categories
+Accept: application/json
+
+### Crear una categoría
+# @name createCategory
+POST {{baseUrl}}/categories
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Ensayo {{$randomInt 1 100000}}"
+}
+
+### Ver la categoría recién creada
+@categoryId = {{createCategory.response.body.$.data.id}}
+
+GET {{baseUrl}}/categories/{{categoryId}}
+Accept: application/json
+
+### Editar la categoría
+PUT {{baseUrl}}/categories/{{categoryId}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Ensayo editado {{$randomInt 1 100000}}"
+}
+
+### Eliminar la categoría (sin libros asociados) -> 200
+DELETE {{baseUrl}}/categories/{{categoryId}}
+Accept: application/json
+
+### -------------------------------------------------------------------------
+### Casos de error
+### -------------------------------------------------------------------------
+
+### Nombre obligatorio -> 422
+POST {{baseUrl}}/categories
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+### Nombre duplicado -> 422 (la categoría "Novela" viene del seeder)
+POST {{baseUrl}}/categories
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "Novela"
+}
+
+### Eliminar una categoría con libros asociados -> 409
+### (la categoría 1 "Novela" del seeder tiene libros)
+DELETE {{baseUrl}}/categories/1
+Accept: application/json
+
+### Categoría inexistente -> 404
+DELETE {{baseUrl}}/categories/999999
+Accept: application/json
